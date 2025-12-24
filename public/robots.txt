@@ -12,7 +12,7 @@ Disallow: /private/
 Allow: /api/waitlist
 
 # Sitemap location
-Sitemap: https://scalptra.com/sitemap.xml
+Sitemap: https://www.scalptra.com/sitemap.xml
 
 # Crawl delay (optional)
 Crawl-delay: 1
@@ -29,3 +29,9 @@ Crawl-delay: 1
 User-agent: Slurp
 Allow: /
 Crawl-delay: 1
+
+# Canonical domain preference
+# All content should be accessed via https://www.scalptra.com
+# Redirects are in place for:
+# - scalptra.com → www.scalptra.com
+# - scalptra-coming.vercel.app → www.scalptra.com

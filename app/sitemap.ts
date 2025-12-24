@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://scalptra.com'
+  const baseUrl = 'https://www.scalptra.com'
   const currentDate = new Date()
 
   return [

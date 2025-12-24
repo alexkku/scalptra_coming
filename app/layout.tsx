@@ -19,7 +19,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://scalptra.com'),
+  metadataBase: new URL('https://www.scalptra.com'),
   title: {
     default: "SCALPTRA - AI-Powered Quantitative Trading",
     template: "%s | SCALPTRA"
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     "Digital Assets",
     "Blockchain Trading"
   ],
-  authors: [{ name: "Scalptra Lab", url: "https://scalptra.com" }],
+  authors: [{ name: "Scalptra Lab", url: "https://www.scalptra.com" }],
   creator: "Scalptra Lab",
   publisher: "Scalptra Lab",
   robots: {
@@ -57,14 +57,14 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://scalptra.com",
+    canonical: "https://www.scalptra.com",
   },
   category: "Technology",
   classification: "Financial Technology",
   openGraph: {
     title: "SCALPTRA - AI-Powered Quantitative Trading",
     description: "Preparing the most precise Agentic Trading system for you. Start trading with next-generation AI algorithms on OKX, coming soon.",
-    url: "https://scalptra.com",
+    url: "https://www.scalptra.com",
     siteName: "SCALPTRA",
     type: "website",
     locale: "en_US",
@@ -129,8 +129,8 @@ export default function RootLayout({
     "@type": "Organization",
     "name": "SCALPTRA",
     "alternateName": "Scalptra Lab",
-    "url": "https://scalptra.com",
-    "logo": "https://scalptra.com/scalptra_logo.png",
+    "url": "https://www.scalptra.com",
+    "logo": "https://www.scalptra.com/scalptra_logo.png",
     "description": "AI-Powered Quantitative Trading Platform",
     "foundingDate": "2025",
     "industry": "Financial Technology",
@@ -182,21 +182,27 @@ export default function RootLayout({
         {/* Cache control */}
         <meta httpEquiv="Cache-Control" content="public, max-age=31536000, immutable" />
         
-        {/* Preconnect to external domains for better performance */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Canonical URL - Always point to www version */}
+        <link rel="canonical" href="https://www.scalptra.com" />
         
-        {/* DNS prefetch for better performance */}
-        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-        <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+        {/* Domain consolidation - redirect all to www version */}
+        <link rel="alternate" href="https://www.scalptra.com" hrefLang="x-default" />
+        <link rel="alternate" href="https://www.scalptra.com" hrefLang="en" />
+        <link rel="alternate" href="https://www.scalptra.com/th" hrefLang="th" />
         
-        {/* Canonical URL */}
-        <link rel="canonical" href="https://scalptra.com" />
-        
-        {/* Alternate languages (if needed in future) */}
-        <link rel="alternate" hrefLang="en" href="https://scalptra.com" />
-        <link rel="alternate" hrefLang="th" href="https://scalptra.com/th" />
-        <link rel="alternate" hrefLang="x-default" href="https://scalptra.com" />
+        {/* Ensure canonical points to www version */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (window.location.hostname !== 'www.scalptra.com') {
+                const canonical = document.querySelector('link[rel="canonical"]');
+                if (canonical) {
+                  canonical.href = 'https://www.scalptra.com' + window.location.pathname;
+                }
+              }
+            `
+          }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

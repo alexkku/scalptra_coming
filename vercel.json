@@ -22,6 +22,39 @@
           "value": "noindex"
         }
       ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Link",
+          "value": "<https://www.scalptra.com>; rel=\"canonical\""
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "scalptra.com"
+        }
+      ],
+      "destination": "https://www.scalptra.com/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "scalptra-coming.vercel.app"
+        }
+      ],
+      "destination": "https://www.scalptra.com/$1",
+      "permanent": true
     }
   ],
   "rewrites": [
