@@ -3,13 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 // Lazy initialization to avoid build-time errors
 export const getSupabase = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
   
-  if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
+  if (!supabaseUrl || !supabasePublishableKey || supabaseUrl.includes('placeholder')) {
     return null // Return null if not configured
   }
   
-  return createClient(supabaseUrl, supabaseAnonKey)
+  return createClient(supabaseUrl, supabasePublishableKey)
 }
 
 export const getSupabaseAdmin = () => {

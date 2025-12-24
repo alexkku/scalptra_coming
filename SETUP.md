@@ -11,14 +11,16 @@
 แก้ไขไฟล์ `.env.local`:
 
 ```env
-# Supabase Configuration
+# Supabase Configuration (เวอร์ชั่นล่าสุด)
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-publishable-key-here
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 
 # Cron Job Secret (สร้าง random string)
 CRON_SECRET=your-random-secret-key-here
 ```
+
+**⚠️ สำคัญ**: Supabase เวอร์ชั่นล่าสุดใช้ `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` แทน `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ### 3. สร้างตารางในฐานข้อมูล
 1. เข้าไปที่ Supabase Dashboard
@@ -73,15 +75,49 @@ jobs:
 
 ### ทดสอบ Waitlist API
 ```bash
+# Linux/Mac
 curl -X POST http://localhost:3000/api/waitlist \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com"}'
+
+# Windows PowerShell
+Invoke-WebRequest -Uri "http://localhost:3000/api/waitlist" -Method POST -Body '{"email":"test@example.com"}' -ContentType "application/json" -UseBasicParsing
 ```
 
 ### ทดสอบ Ping API
 ```bash
+# Linux/Mac
 curl -X GET http://localhost:3000/api/ping \
   -H "Authorization: Bearer your-cron-secret"
+
+# Windows PowerShell
+Invoke-WebRequest -Uri "http://localhost:3000/api/ping" -Method GET -Headers @{"Authorization" = "Bearer your-cron-secret"} -UseBasicParsing
+```
+
+### ✅ ผลลัพธ์ที่คาดหวัง:
+
+**Waitlist API (สำเร็จ):**
+```json
+{
+  "message": "Successfully joined waitlist!",
+  "data": [{"id": 1, "email": "test@example.com", "created_at": "2025-12-24T15:55:43.763+00:00"}]
+}
+```
+
+**Waitlist API (อีเมล์ซ้ำ):**
+```json
+{
+  "message": "Email already registered!"
+}
+```
+
+**Ping API (สำเร็จ):**
+```json
+{
+  "message": "Ping successful",
+  "timestamp": "2025-12-24T15:55:35.523Z",
+  "data": null
+}
 ```
 
 ## 📊 การตรวจสอบข้อมูล

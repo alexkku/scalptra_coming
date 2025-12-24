@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     // Ping Supabase to keep it active
     const { data, error } = await supabaseAdmin
       .from('waitlist')
-      .select('count(*)')
+      .select('*', { count: 'exact', head: true })
       .limit(1)
 
     if (error) {
