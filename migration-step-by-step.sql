@@ -1,14 +1,14 @@
--- Migration: Add Bot Protection Columns
--- Run this in Supabase SQL Editor
+-- Step-by-Step Migration for Bot Protection
+-- Run each section separately in Supabase SQL Editor
 
--- Add new columns to waitlist table
+-- STEP 1: Add missing columns to waitlist table
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS country VARCHAR(2);
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS security_score INTEGER DEFAULT 100;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS verification_token UUID DEFAULT gen_random_uuid();
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS notes TEXT;
 
--- Create security_logs table
+-- STEP 2: Create security_logs table
 CREATE TABLE IF NOT EXISTS security_logs (
     id BIGSERIAL PRIMARY KEY,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -19,29 +19,28 @@ CREATE TABLE IF NOT EXISTS security_logs (
     blocked BOOLEAN DEFAULT TRUE
 );
 
--- Create indexes for security_logs
-CREATE INDEX IF NOT EXISTS idx_security_logs_created_at ON security_logs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_security_logs_ip_address ON security_logs(ip_address);
-CREATE INDEX IF NOT EXISTS idx_security_logs_event_type ON security_logs(event_type);
-
--- Add indexes for new waitlist columns
+-- STEP 3: Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_waitlist_country ON waitlist(country);
 CREATE INDEX IF NOT EXISTS idx_waitlist_security_score ON waitlist(security_score);
 CREATE INDEX IF NOT EXISTS idx_waitlist_is_verified ON waitlist(is_verified);
 CREATE INDEX IF NOT EXISTS idx_waitlist_ip_address ON waitlist(ip_address);
 
--- Enable RLS for security_logs
+CREATE INDEX IF NOT EXISTS idx_security_logs_created_at ON security_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_logs_ip_address ON security_logs(ip_address);
+CREATE INDEX IF NOT EXISTS idx_security_logs_event_type ON security_logs(event_type);
+
+-- STEP 4: Enable RLS for security_logs
 ALTER TABLE security_logs ENABLE ROW LEVEL SECURITY;
 
--- Create policy for security_logs
+-- STEP 5: Create policies
 CREATE POLICY "Service role can do everything on security_logs" ON security_logs
     FOR ALL USING (auth.role() = 'service_role');
 
--- Grant permissions
+-- STEP 6: Grant permissions
 GRANT ALL ON security_logs TO service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 
--- Create functions for analytics
+-- STEP 7: Create analytics functions
 CREATE OR REPLACE FUNCTION get_waitlist_by_country()
 RETURNS TABLE(country VARCHAR(2), count BIGINT) AS $$
 BEGIN
@@ -66,14 +65,17 @@ BEGIN
         COUNT(*) as total_attempts,
         COUNT(*) FILTER (WHERE blocked = TRUE) as blocked_attempts,
         ROUND(
-            (COUNT(*) FILTER (WHERE blocked = FALSE)::NUMERIC / COUNT(*)::NUMERIC) * 100, 
+            CASE 
+                WHEN COUNT(*) = 0 THEN 0
+                ELSE (COUNT(*) FILTER (WHERE blocked = FALSE)::NUMERIC / COUNT(*)::NUMERIC) * 100
+            END, 
             2
         ) as success_rate
     FROM security_logs;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create admin view
+-- STEP 8: Create admin view
 CREATE OR REPLACE VIEW waitlist_summary AS
 SELECT 
     id,
@@ -90,5 +92,15 @@ SELECT
 FROM waitlist
 ORDER BY created_at DESC;
 
--- Grant access to view
+-- STEP 9: Grant access to view
 GRANT SELECT ON waitlist_summary TO service_role;
+
+-- STEP 10: Verify the migration
+SELECT 
+    column_name, 
+    data_type, 
+    is_nullable, 
+    column_default
+FROM information_schema.columns 
+WHERE table_name = 'waitlist' 
+ORDER BY ordinal_position;

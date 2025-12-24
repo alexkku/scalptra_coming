@@ -61,8 +61,7 @@ async function logSecurityEvent(
         blocked
       }])
   } catch (error) {
-    // Ignore if security_logs table doesn't exist yet
-    console.log('Security logging not available:', error)
+    console.log('Security logging not available yet - run migration first:', error)
   }
 }
 
@@ -207,7 +206,7 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get('user-agent') || 'unknown'
     const referer = request.headers.get('referer') || 'direct'
 
-    // Insert new email with basic data first
+    // Insert new email with security metadata (after migration)
     const { data, error } = await supabaseAdmin
       .from('waitlist')
       .insert([
@@ -216,7 +215,9 @@ export async function POST(request: NextRequest) {
           created_at: new Date().toISOString(),
           ip_address: clientIP,
           user_agent: userAgent,
-          referrer: referer
+          referrer: referer,
+          country: country,
+          security_score: 100 // High score for passed validation
         }
       ])
       .select()
