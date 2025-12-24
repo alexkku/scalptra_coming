@@ -202,9 +202,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Get additional Cloudflare data
-    const country = request.headers.get('cf-ipcountry') || 'unknown'
+    const countryRaw = request.headers.get('cf-ipcountry') || 'XX'
     const userAgent = request.headers.get('user-agent') || 'unknown'
     const referer = request.headers.get('referer') || 'direct'
+
+    // Debug logging for country header
+    console.log(`Country header received: "${countryRaw}" (length: ${countryRaw.length})`)
+
+    // Validate and sanitize country code (must be 2 characters for ISO standard)
+    const country = countryRaw && countryRaw.length === 2 && countryRaw !== 'XX' ? countryRaw.toUpperCase() : null
 
     // Insert new email with security metadata (after migration)
     const { data, error } = await supabaseAdmin
