@@ -7,10 +7,27 @@
   ],
   "functions": {
     "app/api/waitlist/route.ts": {
-      "maxDuration": 10
+      "maxDuration": 15
     },
     "app/api/ping/route.ts": {
-      "maxDuration": 10
+      "maxDuration": 15
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap"
+    }
+  ]
 }

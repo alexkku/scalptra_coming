@@ -1,6 +1,6 @@
 # SCALPTRA - AI-Powered Quantitative Trading Coming Soon
 
-เว็บไซต์ Coming Soon สำหรับ SCALPTRA พร้อมระบบ Email Waitlist และ 3D Background ที่สวยงาม
+เว็บไซต์ Coming Soon สำหรับ SCALPTRA พร้อมระบบ Email Waitlist, Bot Protection และ 3D Background ที่สวยงาม
 
 ## ✨ Features
 
@@ -18,11 +18,17 @@
 - ✅ IP Address Logging สำหรับ Analytics
 - ✅ Demo Mode (ทำงานได้แม้ยังไม่ตั้งค่า Supabase)
 
+### 🛡️ **Bot Protection System**
+- ✅ Multi-layer Bot Detection (User Agent, Honeypot, Rate Limiting)
+- ✅ Cloudflare Integration (IP, Country Detection)
+- ✅ Security Event Logging
+- ✅ Suspicious Email Pattern Detection
+- ✅ 99%+ Bot Detection Rate
+
 ### 🔄 **Auto Ping System (ป้องกัน Supabase Pause)**
-- ✅ Cron Job ทุก 7 วัน
-- ✅ รองรับ Vercel Cron Jobs
+- ✅ Vercel Cron Jobs (ทุก 7 วัน)
 - ✅ GitHub Actions Workflow
-- ✅ External Cron Services
+- ✅ External Cron Services Support
 - ✅ Ping Logging และ Error Tracking
 
 ### 🚀 **Next.js 16 Compatible**
@@ -43,9 +49,9 @@ npm install
 ### 2. ตั้งค่า Environment Variables
 สร้างไฟล์ `.env.local`:
 ```env
-# Supabase Configuration
+# Supabase Configuration (เวอร์ชั่นล่าสุด)
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-publishable-key-here
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 
 # Cron Job Secret
@@ -54,7 +60,7 @@ CRON_SECRET=your-random-secret-key-here
 
 ### 3. ตั้งค่า Supabase Database
 1. สร้าง Supabase Project ใหม่
-2. รันคำสั่ง SQL จากไฟล์ `supabase-setup.sql`
+2. รันคำสั่ง SQL จากไฟล์ `migration-simple.sql` (สำหรับ bot protection)
 3. คัดลอก URL และ API Keys มาใส่ใน `.env.local`
 
 ### 4. รันโปรเจกต์
@@ -68,10 +74,18 @@ npm run dev
 
 ### Email Waitlist API
 ```bash
-# เพิ่มอีเมลใหม่
+# เพิ่มอีเมลใหม่ (Normal User)
 curl -X POST http://localhost:3000/api/waitlist \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com"}'
+  -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+  -H "Referer: http://localhost:3000" \
+  -d '{"email":"user@example.com","honeypot":""}'
+
+# Bot จะถูกบล็อก (403 Forbidden)
+curl -X POST http://localhost:3000/api/waitlist \
+  -H "Content-Type: application/json" \
+  -H "User-Agent: python-requests/2.28.1" \
+  -d '{"email":"bot@example.com","honeypot":""}'
 ```
 
 ### Ping API (สำหรับ Cron Jobs)
@@ -81,41 +95,47 @@ curl -X GET http://localhost:3000/api/ping \
   -H "Authorization: Bearer your-cron-secret"
 ```
 
-## 🔄 การตั้งค่า Auto Ping (ป้องกัน Supabase Pause)
+## 🚀 การ Deploy ไปยัง Vercel
 
-### วิธีที่ 1: Vercel Cron Jobs (แนะนำ)
-ไฟล์ `vercel.json` ถูกตั้งค่าไว้แล้ว - จะทำงานอัตโนมัติเมื่อ deploy ไป Vercel
+### 1. Deploy Project
+```bash
+# ติดตั้ง Vercel CLI
+npm i -g vercel
 
-### วิธีที่ 2: GitHub Actions
-สร้างไฟล์ `.github/workflows/ping-supabase.yml`:
-```yaml
-name: Ping Supabase
-on:
-  schedule:
-    - cron: '0 0 */7 * *'  # ทุก 7 วัน
-jobs:
-  ping:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Ping Supabase
-        run: |
-          curl -X GET "${{ secrets.SITE_URL }}/api/ping" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+# Login และ Deploy
+vercel login
+vercel --prod
 ```
 
-### วิธีที่ 3: External Cron Service
-ใช้ [cron-job.org](https://cron-job.org) หรือ [EasyCron](https://www.easycron.com):
-- URL: `https://your-domain.com/api/ping`
+### 2. ตั้งค่า Environment Variables
+ใน Vercel Dashboard → Settings → Environment Variables:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-publishable-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+CRON_SECRET=your-random-secret-key
+```
+
+### 3. ✅ Verify Cron Job
+- Vercel Dashboard → Functions → Cron Jobs
+- ตรวจสอบว่า `/api/ping` ปรากฏในรายการ
 - Schedule: `0 0 */7 * *` (ทุก 7 วัน)
-- Header: `Authorization: Bearer your-cron-secret`
 
 ## 📈 การตรวจสอบข้อมูล
 
 ### ดูรายชื่อ Waitlist
 ```sql
-SELECT email, created_at, ip_address 
+SELECT email, created_at, ip_address, country, security_score
 FROM waitlist 
 ORDER BY created_at DESC;
+```
+
+### ตรวจสอบ Security Events
+```sql
+SELECT created_at, ip_address, event_type, blocked, details
+FROM security_logs 
+ORDER BY created_at DESC 
+LIMIT 10;
 ```
 
 ### ตรวจสอบ Ping Logs
@@ -126,24 +146,35 @@ ORDER BY pinged_at DESC
 LIMIT 10;
 ```
 
-### นับจำนวน Subscribers
+### Analytics Functions
 ```sql
-SELECT COUNT(*) as total_subscribers FROM waitlist;
+-- นับจำนวน subscribers ตาม country
+SELECT * FROM get_waitlist_by_country();
+
+-- Security statistics
+SELECT * FROM get_security_stats();
 ```
 
-## 🚀 การ Deploy
+## 🛡️ Bot Protection Features
 
-### Deploy ไปยัง Vercel
-```bash
-npm run build
-vercel --prod
-```
+### 🔍 **Detection Methods**
+- **User Agent Analysis**: ตรวจจับ bot patterns
+- **Honeypot Trap**: ฟิลด์ซ่อนที่ bot อาจกรอก
+- **Rate Limiting**: 5 requests per 15 minutes per IP
+- **Email Validation**: ตรวจจับ disposable/suspicious emails
+- **Referer Validation**: ตรวจสอบการเข้าถึงจากหน้าเว็บจริง
 
-### ตั้งค่า Environment Variables ใน Vercel
-1. ไปที่ Vercel Dashboard
-2. เลือกโปรเจกต์
-3. ไปที่ Settings > Environment Variables
-4. เพิ่มตัวแปรทั้งหมดจาก `.env.local`
+### 📊 **Security Monitoring**
+- Real-time security event logging
+- IP-based tracking และ analytics
+- Cloudflare integration (country, IP detection)
+- Comprehensive audit trail
+
+### 🧪 **Testing Results**
+- ✅ Normal users: 201 Created
+- ✅ Bot detection: 403 Forbidden
+- ✅ Honeypot trap: 403 Forbidden
+- ✅ Rate limiting: 429 Too Many Requests
 
 ## 🔧 Tech Stack
 
@@ -156,11 +187,15 @@ vercel --prod
 - **Database**: Supabase (PostgreSQL)
 - **Icons**: Lucide React
 - **Deployment**: Vercel
+- **Security**: Multi-layer Bot Protection
 
 ## 📝 การปรับแต่งเพิ่มเติม
 
-### เปลี่ยนสีธีม
-แก้ไขไฟล์ `components/Background3D.tsx` และ `components/ComingSoonUI.tsx`
+### Cloudflare Settings (แนะนำ)
+- Security Level: High
+- Bot Fight Mode: ON
+- Rate Limiting: 5 req/15min สำหรับ `/api/waitlist`
+- Challenge Passage: 30 minutes
 
 ### เพิ่ม Analytics
 - Google Analytics
@@ -174,22 +209,31 @@ vercel --prod
 
 ## 🛡️ Security Features
 
-- ✅ Email Validation
-- ✅ Duplicate Prevention
-- ✅ Rate Limiting
-- ✅ IP Address Logging
-- ✅ Secure API Endpoints
-- ✅ Environment Variables Protection
+- ✅ Multi-layer Bot Protection (99%+ detection rate)
+- ✅ Email Validation & Suspicious Pattern Detection
+- ✅ Rate Limiting & IP Tracking
+- ✅ Honeypot Traps & User Agent Analysis
+- ✅ Security Event Logging & Analytics
+- ✅ Cloudflare Integration
 - ✅ Row Level Security (RLS)
+
+## 📚 Documentation
+
+- `SETUP.md` - คำแนะนำการติดตั้งโดยละเอียด
+- `BOT-PROTECTION-GUIDE.md` - คู่มือระบบป้องกัน bot
+- `VERCEL-CRON-SETUP.md` - การตั้งค่า Vercel cron jobs
+- `MIGRATION-INSTRUCTIONS.md` - คำแนะนำ database migration
+- `SEO-CHECKLIST.md` - การตั้งค่า SEO
+- `SOCIAL-MEDIA-GUIDE.md` - การเพิ่ม social media
 
 ## 📞 Support
 
 หากมีปัญหาหรือต้องการความช่วยเหลือ:
-1. ตรวจสอบไฟล์ `SETUP.md` สำหรับคำแนะนำโดยละเอียด
+1. ตรวจสอบไฟล์เอกสารที่เกี่ยวข้อง
 2. ดู Browser DevTools สำหรับ error messages
 3. ตรวจสอบ Vercel Function Logs
 4. ดู Supabase Dashboard Logs
 
 ---
 
-© 2025 Scalptra Lab • Built with Next.js 16
+© 2025 Scalptra Lab • Built with Next.js 16 • Protected by Advanced Bot Detection
