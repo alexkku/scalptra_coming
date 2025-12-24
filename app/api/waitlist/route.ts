@@ -118,7 +118,6 @@ export async function POST(request: NextRequest) {
     // Get client IP (Vercel headers when Cloudflare proxy is disabled)
     const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
                      request.headers.get('x-real-ip') || 
-                     request.ip ||
                      'unknown'
 
     // Rate limiting check
@@ -202,14 +201,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Get additional request data (Vercel environment)
-    const countryRaw = request.headers.get('x-vercel-ip-country') || 
-                       request.geo?.country || 
-                       'XX'
+    const countryRaw = request.headers.get('x-vercel-ip-country') || 'XX'
     const userAgent = request.headers.get('user-agent') || 'unknown'
     const referer = request.headers.get('referer') || 'direct'
 
     // Debug logging for country detection
-    console.log(`Country detection - Header: "${request.headers.get('x-vercel-ip-country')}", Geo: "${request.geo?.country}", Final: "${countryRaw}"`)
+    console.log(`Country detection - Header: "${request.headers.get('x-vercel-ip-country')}", Final: "${countryRaw}"`)
 
     // Validate and sanitize country code (must be 2 characters for ISO standard)
     const country = countryRaw && countryRaw.length === 2 && countryRaw !== 'XX' ? countryRaw.toUpperCase() : null
