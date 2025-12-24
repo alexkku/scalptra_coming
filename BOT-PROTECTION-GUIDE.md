@@ -4,43 +4,48 @@
 
 ### **🎯 การป้องกันหลายชั้น (Multi-Layer Protection)**
 
-## 1. **🌐 Cloudflare Level Protection**
+## 1. **🌐 Vercel Level Protection**
 
 ### **✅ ที่คุณมีอยู่แล้ว:**
-- DDoS Protection
-- Bot Management (Basic)
-- Rate Limiting
-- Geo-blocking
-- IP Reputation
+- DDoS Protection (Vercel Edge Network)
+- Rate Limiting (Built-in)
+- Geo-blocking (Vercel Edge Functions)
+- IP Reputation (Vercel Security)
 
 ### **🔧 การตั้งค่าเพิ่มเติมที่แนะนำ:**
 
-#### **Security Level:**
-```
-Cloudflare Dashboard → Security → Settings
-- Security Level: High
-- Challenge Passage: 30 minutes
-- Browser Integrity Check: ON
+#### **Vercel Security Headers:**
+```json
+// ใน vercel.json
+{
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
+    }
+  ]
+}
 ```
 
-#### **Bot Fight Mode:**
-```
-Cloudflare Dashboard → Security → Bots
-- Bot Fight Mode: ON (ฟรี)
-- หรือ Super Bot Fight Mode (Pro plan)
-```
+#### **Vercel Edge Config (Pro plan):**
+```javascript
+// Rate limiting with Edge Config
+import { get } from '@vercel/edge-config';
 
-#### **Rate Limiting Rules:**
-```
-Rule 1: Email Submission
-- Path: /api/waitlist
-- Rate: 5 requests per 15 minutes per IP
-- Action: Block
-
-Rule 2: API Endpoints
-- Path: /api/*
-- Rate: 10 requests per minute per IP
-- Action: Challenge
+const rateLimits = await get('rate-limits');
 ```
 
 ## 2. **🔍 Application Level Detection**
@@ -79,6 +84,19 @@ const SUSPICIOUS_EMAIL_PATTERNS = [
   /temp|temporary|disposable/i,
   /10minutemail|guerrillamail|mailinator/i
 ]
+```
+
+#### **IP and Country Detection (Vercel):**
+```typescript
+// Vercel headers (without Cloudflare proxy)
+const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+                 request.headers.get('x-real-ip') || 
+                 request.ip ||
+                 'unknown'
+
+const country = request.headers.get('x-vercel-ip-country') || 
+                request.geo?.country || 
+                null
 ```
 
 ## 3. **📊 Security Monitoring**
@@ -187,18 +205,18 @@ await supabaseAdmin
 
 #### **1. Normal User:**
 ```bash
-# Should succeed
-curl -X POST http://localhost:3000/api/waitlist \
+# Should succeed (Vercel domain)
+curl -X POST https://your-domain.vercel.app/api/waitlist \
   -H "Content-Type: application/json" \
   -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-  -H "Referer: http://localhost:3000" \
+  -H "Referer: https://your-domain.vercel.app" \
   -d '{"email":"user@example.com","honeypot":""}'
 ```
 
 #### **2. Bot Detection:**
 ```bash
 # Should be blocked (bot user agent)
-curl -X POST http://localhost:3000/api/waitlist \
+curl -X POST https://your-domain.vercel.app/api/waitlist \
   -H "Content-Type: application/json" \
   -H "User-Agent: python-requests/2.28.1" \
   -d '{"email":"bot@example.com","honeypot":""}'
@@ -207,9 +225,10 @@ curl -X POST http://localhost:3000/api/waitlist \
 #### **3. Honeypot Trigger:**
 ```bash
 # Should be blocked (honeypot filled)
-curl -X POST http://localhost:3000/api/waitlist \
+curl -X POST https://your-domain.vercel.app/api/waitlist \
   -H "Content-Type: application/json" \
   -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+  -H "Referer: https://your-domain.vercel.app" \
   -d '{"email":"user@example.com","honeypot":"spam"}'
 ```
 
@@ -223,27 +242,55 @@ for i in {1..6}; do
 done
 ```
 
-## 7. **🔧 Cloudflare Advanced Settings**
+## 7. **🔧 Vercel Advanced Settings**
 
-### **🛡️ Security Rules:**
+### **🛡️ Security Headers:**
 
-#### **Block Known Bots:**
-```
-(http.user_agent contains "bot") or 
-(http.user_agent contains "crawler") or 
-(http.user_agent contains "spider")
+#### **API Protection:**
+```json
+// ใน vercel.json
+{
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    }
+  ]
+}
 ```
 
-#### **Challenge Suspicious Requests:**
-```
-(http.request.uri.path eq "/api/waitlist") and 
-(not http.referer contains "scalptra.com")
+#### **Rate Limiting (Edge Functions):**
+```typescript
+// ใน middleware.ts (ถ้าต้องการ)
+import { NextRequest, NextResponse } from 'next/server'
+
+export function middleware(request: NextRequest) {
+  // Custom rate limiting logic
+  const ip = request.ip || 'unknown'
+  // ... rate limiting implementation
+}
 ```
 
-#### **Geo-blocking (if needed):**
-```
-(ip.geoip.country in {"CN" "RU" "KP"}) and 
-(http.request.uri.path contains "/api/")
+#### **Geo-blocking (ถ้าต้องการ):**
+```typescript
+// ใน API route
+const country = request.geo?.country
+if (['CN', 'RU', 'KP'].includes(country)) {
+  return NextResponse.json({ error: 'Blocked' }, { status: 403 })
+}
 ```
 
 ## 8. **📈 Success Metrics**
@@ -283,7 +330,7 @@ WHERE created_at < NOW() - INTERVAL '30 days';
 ## ✅ **สรุป: ระบบป้องกันที่ครอบคลุม**
 
 ### **🛡️ Protection Layers:**
-1. **Cloudflare**: DDoS, Bot Management, Rate Limiting
+1. **Vercel Edge Network**: DDoS, Rate Limiting, Geo-detection
 2. **Application**: User Agent, Honeypot, Email Validation
 3. **Database**: Security Logging, Analytics
 4. **Monitoring**: Real-time alerts, Statistics

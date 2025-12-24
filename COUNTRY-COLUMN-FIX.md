@@ -1,11 +1,11 @@
-# 🔧 Country Column Fix - SCALPTRA
+# 🔧 Country Column Fix - SCALPTRA (Vercel Environment)
 
 ## 🚨 **Error: value too long for type character varying(2)**
 
 ### **📋 สาเหตุของปัญหา:**
 - Column `country` ถูกกำหนดเป็น `VARCHAR(2)` สำหรับ ISO country codes
-- Cloudflare ส่ง `cf-ipcountry` เป็น `'unknown'` (7 ตัวอักษร) แทนที่จะเป็น country code
-- เมื่อไม่มี Cloudflare หรือ local development จะได้ `'unknown'` ซึ่งยาวเกิน 2 ตัวอักษร
+- เมื่อไม่มี country detection หรือ local development จะได้ `'unknown'` ซึ่งยาวเกิน 2 ตัวอักษร
+- Vercel ให้ country data ผ่าน `x-vercel-ip-country` header และ `request.geo.country`
 
 ## 🔧 **วิธีแก้ไข (เลือก 1 วิธี):**
 
@@ -44,21 +44,32 @@ AND column_name = 'country';
 
 ## ✅ **การแก้ไขใน Code (ทำแล้ว)**
 
-API ได้รับการอัพเดทเพื่อ:
+API ได้รับการอัพเดทสำหรับ Vercel environment:
 
 ```typescript
+// Vercel IP and Country Detection
+const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+                 request.headers.get('x-real-ip') || 
+                 request.ip ||
+                 'unknown'
+
+const countryRaw = request.headers.get('x-vercel-ip-country') || 
+                   request.geo?.country || 
+                   'XX'
+
 // Validate country code before inserting
-const countryRaw = request.headers.get('cf-ipcountry') || 'XX'
 const country = countryRaw && countryRaw.length === 2 && countryRaw !== 'XX' 
   ? countryRaw.toUpperCase() 
   : null
 ```
 
-### **🎯 การทำงานใหม่:**
+### **🎯 การทำงานใหม่ (Vercel Environment):**
+- ✅ ใช้ `x-vercel-ip-country` header สำหรับ country detection
+- ✅ ใช้ `request.geo.country` เป็น fallback
+- ✅ ใช้ `x-forwarded-for` สำหรับ real IP detection
 - ✅ รับเฉพาะ country codes ที่ยาว 2 ตัวอักษร
 - ✅ แปลงเป็นตัวพิมพ์ใหญ่ (TH, US, JP, etc.)
 - ✅ ใส่ `null` แทนค่าที่ไม่ถูกต้อง
-- ✅ Debug logging เพื่อตรวจสอบค่าที่ได้รับ
 
 ## 🧪 **การทดสอบหลังแก้ไข**
 
@@ -67,6 +78,7 @@ const country = countryRaw && countryRaw.length === 2 && countryRaw !== 'XX'
 curl -X POST https://your-domain.vercel.app/api/waitlist \
   -H "Content-Type: application/json" \
   -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+  -H "Referer: https://your-domain.vercel.app" \
   -d '{"email":"test@example.com","honeypot":""}'
 ```
 
@@ -75,7 +87,7 @@ curl -X POST https://your-domain.vercel.app/api/waitlist \
 ### **Test 2: Check Database**
 ```sql
 -- ดูข้อมูลล่าสุด
-SELECT email, country, created_at 
+SELECT email, country, ip_address, created_at 
 FROM waitlist 
 ORDER BY created_at DESC 
 LIMIT 5;
@@ -83,52 +95,56 @@ LIMIT 5;
 
 **Expected**: country จะเป็น `null` หรือ country code 2 ตัวอักษร
 
-## 🔍 **Debug Information**
+## 🔍 **Debug Information (Vercel)**
 
-### **Check Cloudflare Headers**
+### **Check Vercel Headers**
 ใน Vercel Function Logs ดู:
 ```
-Country header received: "unknown" (length: 7)
-Country header received: "TH" (length: 2)
-Country header received: "US" (length: 2)
+Country detection - Header: "TH", Geo: "TH", Final: "TH"
+Country detection - Header: null, Geo: "US", Final: "US"
+Country detection - Header: null, Geo: null, Final: "XX"
 ```
 
-### **Common Country Values:**
+### **Vercel Geo Data:**
 - ✅ `"TH"` - Thailand
 - ✅ `"US"` - United States  
 - ✅ `"JP"` - Japan
-- ❌ `"unknown"` - ไม่ทราบ (จะถูกแปลงเป็น `null`)
+- ❌ `null` - ไม่ทราบ (จะถูกแปลงเป็น `null`)
 - ❌ `"XX"` - Default value (จะถูกแปลงเป็น `null`)
 
-## 📊 **Expected Database Schema**
+## 📊 **Vercel vs Cloudflare Headers**
 
-หลังจากแก้ไข:
+### **Vercel (ปัจจุบัน):**
+```typescript
+// IP Detection
+request.headers.get('x-forwarded-for')
+request.headers.get('x-real-ip')
+request.ip
 
-```sql
--- ตรวจสอบ schema
-\d waitlist
+// Country Detection
+request.headers.get('x-vercel-ip-country')
+request.geo?.country
+```
 
--- Expected columns:
-id              | bigint                      | not null default nextval('waitlist_id_seq'::regclass)
-email           | character varying(255)      | not null
-created_at      | timestamp with time zone    | default now()
-ip_address      | inet                        |
-user_agent      | text                        |
-referrer        | text                        |
-country         | character varying(2)        | -- หรือ VARCHAR(10) ถ้าขยายแล้ว
-security_score  | integer                     | default 100
+### **Cloudflare (เก่า - ไม่ใช้แล้ว):**
+```typescript
+// IP Detection
+request.headers.get('cf-connecting-ip')
+
+// Country Detection  
+request.headers.get('cf-ipcountry')
 ```
 
 ## 🚨 **Troubleshooting**
 
 ### **ถ้ายังมี Error:**
 
-1. **ตรวจสอบ Migration:**
-```sql
-SELECT column_name, data_type, character_maximum_length
-FROM information_schema.columns 
-WHERE table_name = 'waitlist' 
-AND column_name = 'country';
+1. **ตรวจสอบ Vercel Headers:**
+```javascript
+// ใน API route เพิ่ม debug
+console.log('All headers:', Object.fromEntries(request.headers.entries()))
+console.log('Geo data:', request.geo)
+console.log('IP:', request.ip)
 ```
 
 2. **ตรวจสอบข้อมูลเก่า:**
@@ -152,15 +168,16 @@ WHERE LENGTH(country) > 2;
 - ✅ Email signup ทำงานได้ปกติ (201 Created)
 - ✅ ไม่มี "value too long" error
 - ✅ Country data เป็น `null` หรือ 2-character codes
-- ✅ Debug logs แสดงค่า country ที่ถูกต้อง
+- ✅ Debug logs แสดงค่า country จาก Vercel headers
+- ✅ IP detection ใช้ Vercel headers
 
 ---
 
-## 🎯 **Quick Fix Summary**
+## 🎯 **Quick Fix Summary (Vercel Environment)**
 
 1. **Run SQL**: `UPDATE waitlist SET country = NULL WHERE LENGTH(country) > 2;`
-2. **Deploy Code**: Code ได้รับการแก้ไขแล้ว
-3. **Test**: ทดสอบ email signup
-4. **Verify**: ตรวจสอบ database ไม่มีข้อมูลผิด
+2. **Deploy Code**: Code ได้รับการแก้ไขสำหรับ Vercel แล้ว
+3. **Test**: ทดสอบ email signup บน Vercel domain
+4. **Verify**: ตรวจสอบ database และ Vercel Function Logs
 
-หลังจากทำตามขั้นตอนนี้ ระบบจะทำงานได้ปกติ!
+หลังจากทำตามขั้นตอนนี้ ระบบจะทำงานได้ปกติบน Vercel โดยไม่ต้องใช้ Cloudflare proxy!

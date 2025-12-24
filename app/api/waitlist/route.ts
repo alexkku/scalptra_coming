@@ -83,7 +83,7 @@ function detectBot(request: NextRequest): { isBot: boolean; reason?: string } {
   }
   
   // Check for direct API calls (no referer from our domain)
-  if (!referer.includes('localhost') && !referer.includes('scalptra.com') && !referer.includes('vercel.app')) {
+  if (!referer.includes('localhost') && !referer.includes('vercel.app') && !referer.includes('scalptra.com') && referer !== 'direct') {
     return { isBot: true, reason: 'Direct API access' }
   }
   
@@ -115,10 +115,10 @@ function validateEmail(email: string): { isValid: boolean; reason?: string } {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get client IP (Cloudflare headers)
-    const clientIP = request.headers.get('cf-connecting-ip') || 
-                     request.headers.get('x-forwarded-for') || 
+    // Get client IP (Vercel headers when Cloudflare proxy is disabled)
+    const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
                      request.headers.get('x-real-ip') || 
+                     request.ip ||
                      'unknown'
 
     // Rate limiting check
@@ -201,13 +201,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get additional Cloudflare data
-    const countryRaw = request.headers.get('cf-ipcountry') || 'XX'
+    // Get additional request data (Vercel environment)
+    const countryRaw = request.headers.get('x-vercel-ip-country') || 
+                       request.geo?.country || 
+                       'XX'
     const userAgent = request.headers.get('user-agent') || 'unknown'
     const referer = request.headers.get('referer') || 'direct'
 
-    // Debug logging for country header
-    console.log(`Country header received: "${countryRaw}" (length: ${countryRaw.length})`)
+    // Debug logging for country detection
+    console.log(`Country detection - Header: "${request.headers.get('x-vercel-ip-country')}", Geo: "${request.geo?.country}", Final: "${countryRaw}"`)
 
     // Validate and sanitize country code (must be 2 characters for ISO standard)
     const country = countryRaw && countryRaw.length === 2 && countryRaw !== 'XX' ? countryRaw.toUpperCase() : null
