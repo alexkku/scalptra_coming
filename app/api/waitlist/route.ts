@@ -1,13 +1,178 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 
+// Rate limiting store (in production, use Redis or database)
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
+
+// Bot detection patterns
+const BOT_PATTERNS = [
+  /bot|crawler|spider|scraper/i,
+  /curl|wget|python|php|java/i,
+  /postman|insomnia|httpie/i
+]
+
+// Suspicious email patterns
+const SUSPICIOUS_EMAIL_PATTERNS = [
+  /^[a-z0-9]{32}@/i, // Random 32-char emails
+  /test\d+@/i, // test1@, test2@, etc.
+  /temp|temporary|disposable/i,
+  /10minutemail|guerrillamail|mailinator/i
+]
+
+// Simple rate limiting
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const key = `rate_limit_${ip}`
+  const limit = rateLimitStore.get(key)
+  
+  if (!limit || now > limit.resetTime) {
+    // Reset or create new limit (5 requests per 15 minutes)
+    rateLimitStore.set(key, { count: 1, resetTime: now + 15 * 60 * 1000 })
+    return true
+  }
+  
+  if (limit.count >= 5) {
+    return false // Rate limit exceeded
+  }
+  
+  limit.count++
+  return true
+}
+
+// Log security events
+async function logSecurityEvent(
+  supabaseAdmin: any,
+  ip: string,
+  userAgent: string,
+  eventType: string,
+  details: any,
+  blocked: boolean = true
+) {
+  if (!supabaseAdmin) return
+  
+  try {
+    await supabaseAdmin
+      .from('security_logs')
+      .insert([{
+        ip_address: ip,
+        user_agent: userAgent,
+        event_type: eventType,
+        details,
+        blocked
+      }])
+  } catch (error) {
+    // Ignore if security_logs table doesn't exist yet
+    console.log('Security logging not available:', error)
+  }
+}
+
+// Bot detection
+function detectBot(request: NextRequest): { isBot: boolean; reason?: string } {
+  const userAgent = request.headers.get('user-agent') || ''
+  const referer = request.headers.get('referer') || ''
+  
+  // Check user agent patterns
+  for (const pattern of BOT_PATTERNS) {
+    if (pattern.test(userAgent)) {
+      return { isBot: true, reason: 'Suspicious user agent' }
+    }
+  }
+  
+  // Check for missing or suspicious headers
+  if (!userAgent) {
+    return { isBot: true, reason: 'Missing user agent' }
+  }
+  
+  // Check for direct API calls (no referer from our domain)
+  if (!referer.includes('localhost') && !referer.includes('scalptra.com') && !referer.includes('vercel.app')) {
+    return { isBot: true, reason: 'Direct API access' }
+  }
+  
+  return { isBot: false }
+}
+
+// Email validation
+function validateEmail(email: string): { isValid: boolean; reason?: string } {
+  // Basic format check
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) {
+    return { isValid: false, reason: 'Invalid email format' }
+  }
+  
+  // Check for suspicious patterns
+  for (const pattern of SUSPICIOUS_EMAIL_PATTERNS) {
+    if (pattern.test(email)) {
+      return { isValid: false, reason: 'Suspicious email pattern' }
+    }
+  }
+  
+  // Check email length (reasonable limits)
+  if (email.length > 254 || email.length < 5) {
+    return { isValid: false, reason: 'Email length out of bounds' }
+  }
+  
+  return { isValid: true }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json()
+    // Get client IP (Cloudflare headers)
+    const clientIP = request.headers.get('cf-connecting-ip') || 
+                     request.headers.get('x-forwarded-for') || 
+                     request.headers.get('x-real-ip') || 
+                     'unknown'
 
-    if (!email || !email.includes('@')) {
+    // Rate limiting check
+    if (!checkRateLimit(clientIP)) {
+      console.log(`Rate limit exceeded for IP: ${clientIP}`)
+      await logSecurityEvent(getSupabaseAdmin(), clientIP, request.headers.get('user-agent') || '', 'rate_limit', { attempts: 'exceeded' })
       return NextResponse.json(
-        { error: 'Valid email is required' },
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
+    // Bot detection
+    const botCheck = detectBot(request)
+    if (botCheck.isBot) {
+      console.log(`Bot detected: ${botCheck.reason} - IP: ${clientIP}`)
+      await logSecurityEvent(getSupabaseAdmin(), clientIP, request.headers.get('user-agent') || '', 'bot_detected', { reason: botCheck.reason })
+      return NextResponse.json(
+        { error: 'Request blocked' },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const { email, honeypot } = body
+
+    // Honeypot check (invisible field that bots might fill)
+    if (honeypot) {
+      console.log(`Honeypot triggered - IP: ${clientIP}`)
+      await logSecurityEvent(getSupabaseAdmin(), clientIP, request.headers.get('user-agent') || '', 'honeypot', { honeypot_value: honeypot })
+      return NextResponse.json(
+        { error: 'Request blocked' },
+        { status: 403 }
+      )
+    }
+
+    // Email validation
+    if (!email) {
+      return NextResponse.json(
+        { error: 'Email is required' },
+        { status: 400 }
+      )
+    }
+
+    const emailValidation = validateEmail(email)
+    if (!emailValidation.isValid) {
+      console.log(`Invalid email: ${emailValidation.reason} - ${email} - IP: ${clientIP}`)
+      await logSecurityEvent(getSupabaseAdmin(), clientIP, request.headers.get('user-agent') || '', 'suspicious_email', { 
+        email: email.substring(0, 10) + '...', // Partial email for privacy
+        reason: emailValidation.reason 
+      })
+      return NextResponse.json(
+        { error: 'Please enter a valid email address' },
         { status: 400 }
       )
     }
@@ -37,16 +202,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Insert new email
+    // Get additional Cloudflare data
+    const country = request.headers.get('cf-ipcountry') || 'unknown'
+    const userAgent = request.headers.get('user-agent') || 'unknown'
+    const referer = request.headers.get('referer') || 'direct'
+
+    // Insert new email with basic data first
     const { data, error } = await supabaseAdmin
       .from('waitlist')
       .insert([
         {
           email: email.toLowerCase(),
           created_at: new Date().toISOString(),
-          ip_address: request.headers.get('x-forwarded-for') || 
-                     request.headers.get('x-real-ip') || 
-                     'unknown'
+          ip_address: clientIP,
+          user_agent: userAgent,
+          referrer: referer
         }
       ])
       .select()
@@ -58,6 +228,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    console.log(`New waitlist signup: ${email} - IP: ${clientIP} - Country: ${country}`)
 
     return NextResponse.json(
       { message: 'Successfully joined waitlist!', data },

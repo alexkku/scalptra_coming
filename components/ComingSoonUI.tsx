@@ -25,7 +25,10 @@ export default function ComingSoonUI() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ 
+          email,
+          honeypot: '' // Empty honeypot field for bot detection
+        }),
       });
 
       const data = await response.json();
@@ -41,7 +44,13 @@ export default function ComingSoonUI() {
         }
       } else {
         setStatus('error');
-        setMessage(data.error || 'Something went wrong. Please try again.');
+        if (response.status === 429) {
+          setMessage('Too many requests. Please try again in a few minutes.');
+        } else if (response.status === 403) {
+          setMessage('Request blocked. Please try again later.');
+        } else {
+          setMessage(data.error || 'Something went wrong. Please try again.');
+        }
       }
     } catch (error) {
       console.error('Waitlist submission error:', error);
@@ -221,6 +230,23 @@ export default function ComingSoonUI() {
               className="mx-auto flex flex-col md:flex-row max-w-sm md:max-w-md gap-3 md:gap-2 p-3 md:p-2 rounded-2xl md:rounded-full border border-white/20 bg-white/10 backdrop-blur-md shadow-2xl"
               noValidate
             >
+              {/* Honeypot field - invisible to users, visible to bots */}
+              <input
+                type="text"
+                name="website"
+                tabIndex={-1}
+                autoComplete="off"
+                style={{
+                  position: 'absolute',
+                  left: '-9999px',
+                  width: '1px',
+                  height: '1px',
+                  opacity: 0,
+                  pointerEvents: 'none'
+                }}
+                aria-hidden="true"
+              />
+              
               <div className="flex flex-1 items-center px-4 py-2 md:py-0">
                 <Mail className="mr-3 h-4 w-4 md:h-5 md:w-5 text-gray-400" aria-hidden="true" />
                 <label htmlFor="email-input" className="sr-only">
